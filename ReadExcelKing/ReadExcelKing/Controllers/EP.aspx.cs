@@ -62,7 +62,15 @@ public partial class _Default2 : System.Web.UI.Page
             string FolderPath = ConfigurationManager.AppSettings["FolderPath"];
             string FilePath = Server.MapPath(FolderPath + FileName);
             FileUpload1.SaveAs(FilePath);
-            Import_To_Grid(FilePath, Extension, rbHDR.SelectedItem.Value); 
+
+            Import_To_Grid(FilePath, Extension, rbHDR.SelectedItem.Value);
+
+            FileName = null;
+            FilePath = null;
+            Extension = null;
+            FolderPath = null;
+            
+
         } 
     }
     private void Import_To_Grid(string FilePath, string Extension, string isHDR)
@@ -122,12 +130,13 @@ public partial class _Default2 : System.Web.UI.Page
                 GridView1.DataSource = tbl;
                 //Bind the data
                 GridView1.DataBind();
-
+ 
                 pck.Save();
-                pck.Stream.Close();
                 pck.Dispose();
+                stream.Close();
                // string pathD = FilePath;
-               // FilePath = null;
+                FilePath = null;
+                stream = null;
                // var fileToDelete = new FileInfo(pathD);
               // fileToDelete.Delete();
 

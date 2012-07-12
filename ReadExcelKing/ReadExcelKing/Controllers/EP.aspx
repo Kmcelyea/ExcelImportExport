@@ -26,7 +26,7 @@
         <asp:Button ID="btnUpload" runat="server" Text="Upload" OnClick="btnUpload_Click" Height="28px" Width="76px" />
         <br />
         <br />
-        <asp:GridView ID="GridView1" runat="server" GridLines="None" OnPageIndexChanging = "PageIndexChanging" AllowPaging="true" PageSize="15" CssClass="mGrid"  PagerStyle-CssClass="pgr"  AlternatingRowStyle-CssClass="alt" EmptyDataText="No Data Available" Font-Size="Medium">
+        <asp:GridView ID="GridView1" runat="server" GridLines="None" CssClass="mGrid"  PagerStyle-CssClass="pgr"  AlternatingRowStyle-CssClass="alt" EmptyDataText="No Data Available" Font-Size="Medium">
         </asp:GridView>
         </center>
     </div>
