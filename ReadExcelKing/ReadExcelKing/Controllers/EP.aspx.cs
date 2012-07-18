@@ -1,33 +1,3 @@
-/* EPPlus Importer for Excel into aspx pages
- * Coder: Kyle McElyea
- * Comments By: Kyle McElyea
- * 7-12-2012
- * Using EPPlus to import an excel document
- * 
- * The using OfficeOpenXml is the assembly for EPPlus which is added under references from NuGet packages
- * Code hosted at
- * http://epplus.codeplex.com/
- * 
- * The program uses a fileuploader to gather the path of the local xlsx. I am not supporting xls in this you can use OleDB to do both xlsx and xls.
- * Use the OleDB ACE for 2007+ xlsx
- * Use the OleDB Jet for 2003 xls
- * OleDB has a patch to all it's use on 64bit servers...
- * 
- * Once I have the local file path I feed that information into an OfficeOpenXml ExcelPackage eventually saving a dataTable with the gathered information
- * This dataTable is then fed into a GridView
- * 
- * Currently I have not found a solution for trying to reopen an excel that you already opened after launching the program
- * Ex. I upload a file named Buildings.xlsx and then I decide I want to view it again so I upload Buildings.xlsx again and it will likely through the exception
- * that Buildings.xlsx is already in use. Perhaps if you make changes to the file and reupload it may not do this but in my tests if I double upload a file with
- * no changes it will break
- * 
- * So I need a solution like ending file usage or clearing files after they are not on the grid.
- * 
- * 
- * I'm tired of this doesn't exist in current context stuff its a wordy term that I don't get. Nothing like that in Obj-c
- * 
- * */
-
 
 using System;
 using System.Web;
@@ -40,6 +10,10 @@ using System.Data;
 using System.IO;
 using System.Configuration;
 using OfficeOpenXml;
+using NPOI.HSSF.UserModel;
+using NPOI.Util;
+using NPOI.SS.UserModel;
+using NPOI;
 
 
 
@@ -75,71 +49,137 @@ public partial class _Default2 : System.Web.UI.Page
     }
     private void Import_To_Grid(string FilePath, string Extension, string isHDR)
     {
-
-        //Create a new epplus package using openxml
-        var pck = new OfficeOpenXml.ExcelPackage();
-
-        //load the package with the filepath I got from my fileuploader above on the button
-        //pck.Load(new System.IO.FileInfo(FilePath).OpenRead());
-
-        //stream the package
-        FileStream stream = new FileStream(FilePath, FileMode.Open);
-        pck.Load(stream);
-
-        //So.. I am basicly telling it that there is 1 worksheet or to just look at the first one. Not really sure what kind of mayham placing 2 in there would cause.
-        //Don't put 0 in the box it will likely cause it to break since it won't have a worksheet page at all.
-        var ws = pck.Workbook.Worksheets[1];
-
-
-        //This will add a sheet1 if your doing pck.workbook.worksheets["Sheet1"];
-        //if (ws == null)
-        //{
-        //    ws = pck.Workbook.Worksheets.Add("Sheet1");
-        // Obiviously I didn't add anything to the sheet so probably can count on it being blank.
-        //}
-
-        //I created this datatable for below.
-        DataTable tbl = new DataTable();
-       
-        //My sad attempt at changing a radio button value into a bool value to check if there is a header on the xlsx
-        var hdr = bool.Parse(isHDR);
-        Console.WriteLine(hdr);
-
-        //Set the bool value for from above.
-        var hasHeader = hdr;
-
-        //Setup the table based on the value from my bool
-        foreach (var firstRowCell in ws.Cells[1, 1, 1, ws.Dimension.End.Column])
+        if (Extension == ".xls")
         {
-            tbl.Columns.Add(hasHeader ? firstRowCell.Text : string.Format("Column {0}", firstRowCell.Start.Column));
-        }
-        var startRow = hasHeader ? 2 : 1;
-        for (var rowNum = startRow; rowNum <= ws.Dimension.End.Row; rowNum++)
-        {
-            var wsRow = ws.Cells[rowNum, 1, rowNum, ws.Dimension.End.Column];
-            var row = tbl.NewRow();
-            foreach (var cell in wsRow)
+            //string notxlsx = ("This is not an xlsx file");
+            //ClientScript.RegisterStartupScript(this.GetType(), "myalert", "alert('" + notxlsx + "');", true);
+
+            HSSFWorkbook hssfworkbook;
+
+            using (FileStream file = new FileStream(FilePath, FileMode.Open, FileAccess.Read))
+
+                hssfworkbook = new HSSFWorkbook(file);
+
+
+
+            ISheet sheet = hssfworkbook.GetSheetAt(0);
+            System.Collections.IEnumerator rows = sheet.GetRowEnumerator();
+
+            DataTable dt = new DataTable();
+
+            //Counts the number of cells in a row and determines the columns from that.
+            int counter = sheet.GetRow(0).Cells.Count;
+            // J < number of columns needs to be exact at this moment
+            for (int j = 0; j < counter; j++)
             {
-                row[cell.Start.Column - 1] = cell.Text;
-            }
-            tbl.Rows.Add(row);
-        }
-                //Bind Data to GridView
-                //I have all my info in the tbl dataTable so the datasource for the Gridview1 is set to tbl
-                GridView1.Caption = Path.GetFileName(FilePath);
-                GridView1.DataSource = tbl;
-                //Bind the data
-                GridView1.DataBind();
- 
-                pck.Save();
-                pck.Dispose();
-                stream.Close();
-               // string pathD = FilePath;
-                FilePath = null;
-                stream = null;
-               // var fileToDelete = new FileInfo(pathD);
-              // fileToDelete.Delete();
 
+                // set each column to a - ** letters
+                // dt.Columns.Add(Convert.ToChar(((int)'A') + j).ToString());
+
+                //Get first row and set the headers for each cell
+                //dt.Columns.Add(Convert.ToString((string)sheet.GetRow(0).GetCell(+j).StringCellValue).ToString());
+                //Get each cell value in row 0 and return its string for a column name.
+                dt.Columns.Add(sheet.GetRow(0).GetCell(+j).StringCellValue);
+            }
+
+            while (rows.MoveNext())
+            {
+                HSSFRow row = (HSSFRow)rows.Current;
+                DataRow dr = dt.NewRow();
+
+                for (int i = 0; i < row.LastCellNum; i++)
+                {
+                    ICell cell = row.GetCell(i);
+
+
+                    if (cell == null)
+                    {
+                        dr[i] = null;
+                    }
+                    else
+                    {
+                        dr[i] = cell.ToString();
+                    }
+                }
+                dt.Rows.Add(dr);
+
+            }
+            //Hackish way to remove the bad first row made by getting column names
+            dt.Rows.RemoveAt(0);
+            GridView1.Caption = Path.GetFileName(FilePath);
+            GridView1.DataSource = dt;
+            //Bind the data
+            GridView1.DataBind();
+            sheet.Dispose();
+            hssfworkbook.Dispose();
+            
+        }
+        else
+        {
+            //Create a new epplus package using openxml
+            var pck = new OfficeOpenXml.ExcelPackage();
+
+            //load the package with the filepath I got from my fileuploader above on the button
+            //pck.Load(new System.IO.FileInfo(FilePath).OpenRead());
+
+            //stream the package
+            FileStream stream = new FileStream(FilePath, FileMode.Open);
+            pck.Load(stream);
+
+            //So.. I am basicly telling it that there is 1 worksheet or to just look at the first one. Not really sure what kind of mayham placing 2 in there would cause.
+            //Don't put 0 in the box it will likely cause it to break since it won't have a worksheet page at all.
+            var ws = pck.Workbook.Worksheets[1];
+
+
+            //This will add a sheet1 if your doing pck.workbook.worksheets["Sheet1"];
+            if (ws == null)
+            {
+                ws = pck.Workbook.Worksheets.Add("Sheet1");
+                // Obiviously I didn't add anything to the sheet so probably can count on it being blank.
+            }
+
+            //I created this datatable for below.
+            DataTable tbl = new DataTable();
+
+            //My sad attempt at changing a radio button value into a bool value to check if there is a header on the xlsx
+            var hdr = bool.Parse(isHDR);
+            Console.WriteLine(hdr);
+
+            //Set the bool value for from above.
+            var hasHeader = hdr;
+
+            //Setup the table based on the value from my bool
+            foreach (var firstRowCell in ws.Cells[1, 1, 1, ws.Dimension.End.Column])
+            {
+                tbl.Columns.Add(hasHeader ? firstRowCell.Text : string.Format("Column {0}", firstRowCell.Start.Column));
+            }
+            var startRow = hasHeader ? 2 : 1;
+            for (var rowNum = startRow; rowNum <= ws.Dimension.End.Row; rowNum++)
+            {
+                var wsRow = ws.Cells[rowNum, 1, rowNum, ws.Dimension.End.Column];
+                var row = tbl.NewRow();
+                foreach (var cell in wsRow)
+                {
+                    row[cell.Start.Column - 1] = cell.Text;
+                }
+                tbl.Rows.Add(row);
+            }
+            //Bind Data to GridView
+            //I have all my info in the tbl dataTable so the datasource for the Gridview1 is set to tbl
+            GridView1.Caption = Path.GetFileName(FilePath);
+            GridView1.DataSource = tbl;
+            //Bind the data
+            GridView1.DataBind();
+
+            pck.Save();
+            pck.Dispose();
+            stream.Close();
+            // string pathD = FilePath;
+            FilePath = null;
+            stream = null;
+            // var fileToDelete = new FileInfo(pathD);
+            // fileToDelete.Delete();
+        }
 
         }
 
